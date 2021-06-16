@@ -1,22 +1,39 @@
-#lang rash
+#lang racket
 
 (require json)
 (require racket/function)
+(require racket/port)
 
 (define (title) "(title)")
 (define (ext) "(ext)")
+
 (define (yt-video-summary index json-port)
   (let* ([jsexpr (read-json json-port)]
          [get (curry hash-ref jsexpr)])
-    (printf "~a\t~a\t~a" index (get 'title) (get 'channel))))
+    (format "~a\t~a\t~a" index (get 'title) (get 'channel))))
 
 (define url "https://youtube.com/watch?v=M6EOBjxXUEM")
 
-youtube-dl --max-downloads 4 \
---download-archive ytdl-archive.txt \
---dump-json \
--o "Chorpsaway/%(title)s.%(ext)s" \
-$url |> yt-video-summary 0
+(define *data-directory* (make-parameter "data"))
+
+(define (archive-directory) (format "~a/~a" (*data-directory*) "ytdl-archive.txt"))
+
+(define (video-output-path-format channel)
+  (format "~a/~a/%(title)s.%(ext)s" (*data-directory*) channel))
+
+(define (channel-latest-yt-videos-port name url)
+  (let-values ([(pr out in err)
+                (subprocess #f #f #f 'new
+                            "/usr/local/bin/youtube-dl"
+                            "--max-downloads" "4"
+                            "--download-archive" (archive-directory)
+                            "--dump-json"
+                            "-o" (video-output-path-format name)
+                            url)])
+    (future (lambda () (copy-port err (current-error-port))))
+    out))
+
+(display (yt-video-summary 0 (channel-latest-yt-videos-port "Chorpsaway" url)))
 
 ; Goals:
 ; Get today and yesterday's videos from channel
