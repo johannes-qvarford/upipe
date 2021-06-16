@@ -10,7 +10,8 @@
 (define (yt-video-summary index json-port)
   (let* ([jsexpr (read-json json-port)]
          [get (curry hash-ref jsexpr)])
-    (format "~a\t~a\t~a" index (get 'title) (get 'channel))))
+    (if (eof-object? jsexpr) #f
+        (format "~a\t~a\t~a\t~a" index (get 'title) (get 'channel) (get 'id)))))
 
 (define url "https://youtube.com/watch?v=M6EOBjxXUEM")
 
@@ -21,17 +22,19 @@
 (define (video-output-path-format channel)
   (format "~a/~a/%(title)s.%(ext)s" (*data-directory*) channel))
 
+(define (date-too-early) "today-2months")
+
 (define (channel-latest-yt-videos-port name url)
-  (let-values ([(pr out in err)
-                (subprocess #f #f #f 'new
-                            "/usr/local/bin/youtube-dl"
-                            "--max-downloads" "4"
-                            "--download-archive" (archive-directory)
-                            "--dump-json"
-                            "-o" (video-output-path-format name)
-                            url)])
-    (future (lambda () (copy-port err (current-error-port))))
-    out))
+  (define output-string
+    (with-output-to-string
+      (λ () (system* 
+                     "/usr/local/bin/youtube-dl"
+                     "--dateafter" (date-too-early)
+                     "--download-archive" (archive-directory)
+                     "--dump-json"
+                     "-o" (video-output-path-format name)
+                     url))))
+  (open-input-string output-string))
 
 (display (yt-video-summary 0 (channel-latest-yt-videos-port "Chorpsaway" url)))
 
