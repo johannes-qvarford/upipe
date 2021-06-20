@@ -1,22 +1,19 @@
-#lang racket
+#lang typed/racket
 
-(require json
-         racket/function
-         racket/port
+(require typed/json
          "subscription.rkt"
-         "location.rkt")
+         "location.rkt"
+         "video-summary.rkt")
 
-(define (title) "(title)")
-(define (ext) "(ext)")
 (define (archive-path) (format "~a/~a" (data-directory) "ytdl-archive.txt"))
-(define url "https://www.youtube.com/c/ChorpSawaySA/videos")
 (define (date-too-early) "today-2weeks")
 (define (videos-to-check) 5)
 
 (define (video-output-path-format channel)
   (format "~a/~a/%(title)s.%(ext)s" (data-directory) channel))
 
-(define (channel-latest-yt-videos-port name url)
+(: subscription-latest-videos-port : String String -> Input-Port)
+(define (subscription-latest-videos-port name url)
   (define output-string
     (with-output-to-string
       (λ () (system* 
@@ -29,28 +26,28 @@
                      url))))
   (open-input-string output-string))
 
+(: json-stream : Input-Port -> (Sequenceof HashTableTop))
 (define (json-stream json-port)
-  (define jsexpr (read-json json-port))
-  (if (eof-object? jsexpr) empty-stream
-      (stream-cons jsexpr (json-stream json-port))))
+  (define (read-jsexpr [port : Input-Port])
+    (define jsexpr (read-json port))
+    (match jsexpr
+      [(? eof-object?) eof]
+      [(? hash?) jsexpr]
+      [else (error "Unexpected json expression")]))
+  (in-port read-jsexpr json-port))
 
-(define (yt-video-summaries seq)
+(: hash-seq->video-summaries : (Sequenceof HashTableTop) -> (Listof video-summary))
+(define (hash-seq->video-summaries seq)
   (for/list ([i (in-naturals)] [jsexpr seq])
-    (yt-video-summary i jsexpr)))
-
-(define (yt-video-summary index jsexpr)
-  (let*
-      ([get (curry hash-ref jsexpr)])
-    (format "~a  ~a  ~a  ~a  ~a" index (get 'title) (get 'channel) (get 'upload_date) (get 'id))))
+    (index+hash->video-summary i jsexpr)))
 
 (define (latest-videos-command)
-  (for ([subscription (subscriptions)])
-    (define json-port (channel-latest-yt-videos-port (subscription-name subscription) (subscription-url subscription)))
-    (define summaries (yt-video-summaries (json-stream json-port)))
+  (for ([sub (subscriptions)])
+    (define json-port (subscription-latest-videos-port (subscription-name sub) (subscription-url sub)))
+    (define summaries (hash-seq->video-summaries (json-stream json-port)))
     (for ([s summaries])
-      (display s)
-      (display #\newline))
-  ))
+      (display (video-summary->string s))
+      (display #\newline))))
 
 (latest-videos-command)
 
