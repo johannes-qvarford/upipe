@@ -1,19 +1,20 @@
 #lang racket
 
-(require json)
-(require racket/function)
-(require racket/port)
+(require json
+         racket/function
+         racket/port
+         "subscription.rkt"
+         "location.rkt")
 
 (define (title) "(title)")
 (define (ext) "(ext)")
-(define *data-directory* (make-parameter "data"))
-(define (archive-directory) (format "~a/~a" (*data-directory*) "ytdl-archive.txt"))
+(define (archive-path) (format "~a/~a" (data-directory) "ytdl-archive.txt"))
 (define url "https://www.youtube.com/c/ChorpSawaySA/videos")
 (define (date-too-early) "today-2weeks")
 (define (videos-to-check) 5)
 
 (define (video-output-path-format channel)
-  (format "~a/~a/%(title)s.%(ext)s" (*data-directory*) channel))
+  (format "~a/~a/%(title)s.%(ext)s" (data-directory) channel))
 
 (define (channel-latest-yt-videos-port name url)
   (define output-string
@@ -22,7 +23,7 @@
                      "/usr/local/bin/youtube-dl"
                      "--dateafter" (date-too-early)
                      "--playlist-end" (number->string (videos-to-check))
-                     "--download-archive" (archive-directory)
+                     "--download-archive" (archive-path)
                      "--dump-json"
                      "-o" (video-output-path-format name)
                      url))))
@@ -43,17 +44,17 @@
     (format "~a  ~a  ~a  ~a  ~a" index (get 'title) (get 'channel) (get 'upload_date) (get 'id))))
 
 (define (latest-videos-command)
-  (define json-port (channel-latest-yt-videos-port "Chorpsaway" url))
-  (define summaries (yt-video-summaries (json-stream json-port)))
-  (for ([s summaries])
-    (display s)
-    (display #\newline)))
+  (for ([subscription (subscriptions)])
+    (define json-port (channel-latest-yt-videos-port (subscription-name subscription) (subscription-url subscription)))
+    (define summaries (yt-video-summaries (json-stream json-port)))
+    (for ([s summaries])
+      (display s)
+      (display #\newline))
+  ))
 
 (latest-videos-command)
 
 ; Goals:
-; Fetch from list of subscriptions ("name" "url")
-; Store subscriptions in file, and read them when fetching latest videos.
 ; Download files given indexes. Load indexes from file overwritten by previous check.
 ; Get today and yesterday's videos from channel-file (subscriptions).
 ; Write down latest "check date" when calling "upipe done". This will be the lowest date, with no upper-date.
