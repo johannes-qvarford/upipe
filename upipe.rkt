@@ -41,15 +41,22 @@
   (for/list ([i (in-naturals)] [jsexpr seq])
     (index+hash->video-summary i jsexpr)))
 
-(define (latest-videos-command)
-  (for ([sub (subscriptions)])
-    (define json-port (subscription-latest-videos-port (subscription-name sub) (subscription-url sub)))
-    (define summaries (hash-seq->video-summaries (json-stream json-port)))
-    (for ([s summaries])
-      (display (video-summary->string s))
-      (display #\newline))))
+(: subscription-hash-seq : subscription -> (Sequenceof HashTableTop))
+(define (subscription-hash-seq sub)
+  (define json-port (subscription-latest-videos-port (subscription-name sub) (subscription-url sub)))
+  (json-stream json-port))
 
-(latest-videos-command)
+(define (latest-videos-command)
+  (define seqs
+    (for/list: : (Listof (Sequenceof HashTableTop)) ([sub (in-list (subscriptions))])
+      (subscription-hash-seq sub)))
+  (define vs (hash-seq->video-summaries (apply sequence-append seqs)))
+  (for ([s vs])
+    (display (video-summary->string s))
+    (display #\newline)))
+
+(module+ main
+  (latest-videos-command))
 
 ; Goals:
 ; Download files given indexes. Load indexes from file overwritten by previous check.
