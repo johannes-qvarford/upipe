@@ -53,7 +53,13 @@
   (define vs (hash-seq->video-summaries (apply sequence-append seqs)))
   (for ([s vs])
     (display (video-summary->string s))
-    (display #\newline)))
+    (display #\newline))
+  (display "Provide the indices of the videos you want to keep: ")
+  (match (read-line)
+    [(? eof-object?) (display "No input :(")]
+    [(? string? line)
+     (let ([indices (map string->number (string-split line))])
+       (display (format "You choose ~a" indices)))]))
 
 (module+ main
   (latest-videos-command))
