@@ -5,6 +5,8 @@
          "location.rkt"
          "video-summary.rkt")
 
+(provide latest-videos-command)
+
 (define (archive-path) (format "~a/~a" (data-directory) "ytdl-archive.txt"))
 (define (date-too-early) "today-2weeks")
 (define (videos-to-check) 5)
@@ -54,12 +56,7 @@
   (for ([s vs])
     (display (video-summary->string s))
     (display #\newline))
-  (display "Provide the indices of the videos you want to keep: ")
-  (match (read-line)
-    [(? eof-object?) (display "No input :(")]
-    [(? string? line)
-     (let ([indices (map string->number (string-split line))])
-       (display (format "You choose ~a" indices)))]))
+  (save-latest-video-summaries vs))
 
 (module+ main
   (latest-videos-command))
